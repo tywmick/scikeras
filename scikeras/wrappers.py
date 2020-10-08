@@ -472,7 +472,7 @@ class BaseWrapper(BaseEstimator):
             y = check_array(
                 y, ensure_2d=False, allow_nd=False, dtype=_check_array_dtype(y)
             )
-            target_type_ = type_of_target(y)
+            target_type_ = self._get_type_of_target(y)
             y_dtype_ = y.dtype
             y_ndim_ = y.ndim
             if reset:
@@ -525,6 +525,9 @@ class BaseWrapper(BaseEstimator):
         if y is None:
             return X
         return X, y
+
+    def _get_type_of_target(self, y):
+        return type_of_target(y)
 
     @property
     def target_encoder(self) -> BaseScikerasDataTransformer:
@@ -815,6 +818,33 @@ class KerasClassifier(BaseWrapper):
         **BaseWrapper._tags,
     }
 
+    def _get_type_of_target(self, y):
+        target_type = type_of_target(y)
+        if target_type in ("multiclass", "binary") and self.classes_ is not None:
+            target_type = type_of_target(self.classes_)
+        return target_type
+
+    def fit(self, X, y, sample_weight=None):
+        """Constructs a new model with `build_fn` & fit the model to `(X, y)`.
+
+        Arguments:
+            X : array-like, shape `(n_samples, n_features)`
+                Training samples where `n_samples` is the number of samples
+                and `n_features` is the number of features.
+            y : array-like, shape `(n_samples,)` or `(n_samples, n_outputs)`
+                True labels for `X`.
+            sample_weight : array-like of shape (n_samples,), default=None
+                Sample weights. The Keras Model must support this.
+        Returns:
+            self : object
+                a reference to the instance that can be chain called
+                (ex: instance.fit(X,y).transform(X) )
+        Raises:
+            ValueError : In case of invalid shape for `y` argument.
+        """
+        self.classes_ = None
+        return super().fit(X=X, y=y, sample_weight=sample_weight)
+
     @staticmethod
     def scorer(y_true, y_pred, **kwargs) -> float:
         """Accuracy score based on true and predicted target values.
@@ -835,8 +865,9 @@ class KerasClassifier(BaseWrapper):
 
     @property
     def target_encoder(self) -> BaseKerasClassifierTargetTransformer:
+        categories = [self.classes_] if self.classes_ is not None else "auto"
         return KerasClassifierTargetTransformer(
-            loss=self.loss, target_type=self.target_type_
+            loss=self.loss, target_type=self.target_type_, categories=categories
         )
 
     @property
@@ -890,6 +921,9 @@ class KerasClassifier(BaseWrapper):
         Raises:
             ValueError : In case of invalid shape for `y` argument.
         """
+        self.classes_ = (
+            classes if classes is not None else getattr(self, "classes_", None)
+        )
         return super().partial_fit(X, y, sample_weight=sample_weight)
 
     def predict_proba(self, X):

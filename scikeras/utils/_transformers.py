@@ -130,24 +130,36 @@ class KerasClassifierTargetTransformer(BaseKerasClassifierTargetTransformer):
     """Default target transformer for KerasClassifier.
     """
 
-    def __init__(self, target_type="unknown", loss=None):
+    def __init__(self, target_type="unknown", loss=None, categories=None):
         self.target_type = target_type
         self.loss = loss
+        self.categories = categories
 
     def fit(self, X: np.ndarray) -> "KerasClassifierTargetTransformer":
         y = X  # rename for clarity, the input is always expected to be a target `y`
+        if self.categories != "auto":
+            if len(self.categories) != 1:
+                raise ValueError(
+                    "Shape mismatch: if categories is an array,"
+                    " it has to be of shape (n_features,)."
+                )
         encoders = {
             "binary": make_pipeline(
-                Ensure2DTransformer(), OrdinalEncoder(dtype=np.float32),
+                Ensure2DTransformer(),
+                OrdinalEncoder(categories=self.categories, dtype=np.float32),
             ),
             "multiclass": make_pipeline(
-                Ensure2DTransformer(), OrdinalEncoder(dtype=np.float32),
+                Ensure2DTransformer(),
+                OrdinalEncoder(categories=self.categories, dtype=np.float32),
             ),
             "multiclass-one-hot": FunctionTransformer(),
         }
         if is_categorical_crossentropy(self.loss):
             encoders["multiclass"] = make_pipeline(
-                Ensure2DTransformer(), OneHotEncoder(sparse=False, dtype=np.float32),
+                Ensure2DTransformer(),
+                OneHotEncoder(
+                    sparse=False, categories=self.categories, dtype=np.float32
+                ),
             )
         if self.target_type not in encoders:
             raise ValueError(

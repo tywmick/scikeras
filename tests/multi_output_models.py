@@ -96,6 +96,7 @@ class MultiOutputClassifier(KerasClassifier):
 
     @property
     def target_encoder(self) -> MultiOutputKerasClassifierTargetTransformer:
+        categories = [self.classes_] if self.classes_ is not None else "auto"
         return MultiOutputKerasClassifierTargetTransformer(
-            loss=self.loss, target_type=self.target_type_
+            loss=self.loss, target_type=self.target_type_, categories=categories
         )
